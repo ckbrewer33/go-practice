@@ -1,0 +1,34 @@
+# Compiled binaries (Windows / shared libs)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries (go test -c) and coverage output
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Convention: build into ./bin or any bin/ subdir
+bin/
+
+# Go workspace / vendor
+go.work
+go.work.sum
+vendor/
+
+# Env / secrets
+.env
+.env.local
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
