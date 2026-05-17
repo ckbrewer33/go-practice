@@ -1188,3 +1188,161 @@ For each structure:
 - **Reach for invariants when debugging.** "After every operation, the heap property holds." "After every put, the linked list is in MRU-to-LRU order." Bugs in data structures almost always violate an invariant.
 
 This combination — building from the bottom up, testing rigorously, and articulating the *why* — will rebuild both coding fluency and deep CS intuition, regardless of the language you implement it in.
+
+---
+
+## **Appendix A: Writing Unit Tests in Go**
+
+This curriculum is language-agnostic, but tests live in whatever language you pick. If you are using Go, the standard library's `testing` package is the only tool you need — no third-party assertion libraries, no test runners. This appendix is a high-level tour. Anything here can be cross-checked against the official docs at [go.dev/doc](https://go.dev/doc/) and the [`testing` package reference](https://pkg.go.dev/testing).
+
+### **File Layout and Conventions**
+
+- Tests live in files whose names end with `_test.go`. The Go toolchain only compiles these files when running `go test`; they are excluded from `go build`.
+- Place test files in the **same directory** as the code they test. By convention they use the same package (so they can see unexported identifiers). Using `package foo_test` instead gives you a black-box test that can only touch the exported API — useful but rarely needed for this curriculum.
+- A test function must be named `TestXxx` (the second letter must be upper-case) and take a single argument `t *testing.T`.
+
+```go
+package dynamicarray
+
+import "testing"
+
+func TestAppend(t *testing.T) {
+    var a ArrayList
+    a.Append(1)
+    if got := a.Len(); got != 1 {
+        t.Errorf("Len() = %d, want 1", got)
+    }
+}
+```
+
+### **Assertions: `t.Errorf` vs `t.Fatalf`**
+
+Go has no `assert`. You compare values yourself with `if`, and report failures through methods on `*testing.T`:
+
+- **`t.Errorf(format, args...)`** — record a failure but keep running the rest of the test. Use this for independent checks where later assertions still produce useful information.
+- **`t.Fatalf(format, args...)`** — record a failure and stop the current test (or subtest) immediately. Use this when continuing would panic or produce noise (e.g., the value you wanted to inspect is `nil`).
+- **`t.Helper()`** — call this at the top of a helper function so failure messages point at the *caller* rather than at the helper's line number. Essential for shared assertion helpers.
+
+A good failure message includes the input, what you got, and what you wanted, in that order:
+
+```go
+t.Errorf("ReverseRunes(%q) = %q, want %q", in, got, want)
+```
+
+### **Running Tests**
+
+From inside a module directory:
+
+```sh
+go test              # run all tests in the current package
+go test ./...        # run all tests in this module recursively
+go test -v           # verbose: print each test as it runs
+go test -run TestAppend         # run only tests matching the regex
+go test -run TestAppend/empty   # run a specific subtest (see below)
+go test -cover       # report coverage percentage
+go test -race        # enable the race detector (great for concurrent code)
+go test -bench .     # run benchmarks (see below)
+```
+
+The `-run` flag takes a **regular expression** matched against the test name. `TestAppend/empty` targets a subtest named `empty` inside `TestAppend`.
+
+### **Table-Driven Tests**
+
+Table-driven tests are the canonical Go pattern for covering many input/output cases without duplicating boilerplate. The structure is always the same: a slice of anonymous structs, one row per case, and a loop.
+
+```go
+func TestReverse(t *testing.T) {
+    cases := []struct {
+        in, want string
+    }{
+        {"Hello, world", "dlrow ,olleH"},
+        {"Hello, 世界", "界世 ,olleH"},
+        {"", ""},
+    }
+    for _, c := range cases {
+        got := Reverse(c.in)
+        if got != c.want {
+            t.Errorf("Reverse(%q) = %q, want %q", c.in, got, c.want)
+        }
+    }
+}
+```
+
+The pattern adapted from the official Go docs ([go.dev/doc/code](https://go.dev/doc/code)).
+
+#### **Subtests with `t.Run`**
+
+The simple loop above reports all failures under one test name, which gets noisy when many rows fail. Wrap each row in `t.Run` to give it its own name, isolate its failure, and make it individually runnable:
+
+```go
+func TestArrayList_Insert(t *testing.T) {
+    cases := []struct {
+        name    string
+        start   []int
+        index   int
+        value   int
+        want    []int
+        wantErr bool
+    }{
+        {name: "empty/at zero",    start: []int{},        index: 0, value: 9, want: []int{9}},
+        {name: "front",            start: []int{1, 2, 3}, index: 0, value: 9, want: []int{9, 1, 2, 3}},
+        {name: "middle",           start: []int{1, 2, 3}, index: 1, value: 9, want: []int{1, 9, 2, 3}},
+        {name: "end (== length)",  start: []int{1, 2, 3}, index: 3, value: 9, want: []int{1, 2, 3, 9}},
+        {name: "out of bounds",    start: []int{1, 2, 3}, index: 4, value: 9, wantErr: true},
+    }
+    for _, tc := range cases {
+        t.Run(tc.name, func(t *testing.T) {
+            a := newArrayList(tc.start)
+            err := a.Insert(tc.value, tc.index)
+            if (err != nil) != tc.wantErr {
+                t.Fatalf("Insert error = %v, wantErr = %v", err, tc.wantErr)
+            }
+            if tc.wantErr {
+                return
+            }
+            if got := a.Snapshot(); !slicesEqual(got, tc.want) {
+                t.Errorf("after Insert(%d, %d): got %v, want %v", tc.value, tc.index, got, tc.want)
+            }
+        })
+    }
+}
+```
+
+Why this is worth the extra lines:
+
+- Each row gets a stable name in `go test -v` output (`TestArrayList_Insert/middle`).
+- You can re-run a single case with `go test -run TestArrayList_Insert/middle`.
+- `t.Fatalf` inside a subtest stops *that subtest only*; the rest of the table still runs.
+- Spaces in subtest names are converted to underscores when matched by `-run`.
+
+#### **Subtest Gotchas**
+
+- **Loop variable capture (pre-Go 1.22):** if you spell the loop as `for _, tc := range cases` and then close over `tc` inside `t.Run`, older Go versions share one variable across iterations. Modern Go (1.22+) makes the loop variable per-iteration, so this is no longer a foot-gun on `go 1.22+`. The modules in this repo use `go 1.26.2`, so you are safe.
+- **`t.Parallel()`** marks a subtest as eligible to run in parallel with other parallel subtests. Useful for slow IO-bound tests, almost never needed for data-structure unit tests.
+
+### **Benchmarks**
+
+Benchmarks live next to tests, in `_test.go` files, and are named `BenchmarkXxx`. The framework runs the body `b.N` times and tunes `b.N` until it has a stable measurement.
+
+```go
+func BenchmarkArrayList_Append(b *testing.B) {
+    var a ArrayList
+    for i := 0; i < b.N; i++ {
+        a.Append(i)
+    }
+}
+```
+
+Run with `go test -bench .`. Use `b.StopTimer()` / `b.StartTimer()` to exclude setup, and `b.ReportAllocs()` to include allocation counts in the output. Benchmarks are worth writing on structures where amortized vs worst-case timing matters (dynamic array growth, heap operations, hash map resize).
+
+### **A Workable Default for This Curriculum**
+
+For each data structure:
+
+1. Define the public API (method signatures) before writing any test.
+2. Start with one `TestXxx` per method that uses a table of subtests.
+3. Always include rows for: empty input, single element, the bounds (`0`, `length-1`, `length`), out-of-bounds, and at least one "happy path" middle case.
+4. Add invariant-style tests where they apply: heap property holds after every op, BST in-order is sorted, LRU size never exceeds capacity.
+5. Benchmark only the operations whose complexity claims are non-obvious.
+
+If a row fails, the failure message alone should tell you which input broke and what value was wrong — never make yourself re-read the test code to interpret a failure.
