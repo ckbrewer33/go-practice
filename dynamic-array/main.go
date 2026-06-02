@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 func main() {
 	fmt.Println("Hello, world")
@@ -38,7 +41,7 @@ func (a *ArrayList) Insert(val, pos int) {
 }
 
 // Remove the value at a specific position. Check bounds, save the removed value if returning
-// it, shift later values left, lear the unused final slot, then decrement length.
+// it, shift later values left, clear the unused final slot, then decrement length.
 func (a *ArrayList) Remove(pos int) int {
 	fmt.Println("Remove not implemlented yet")
 	return 0
@@ -46,8 +49,12 @@ func (a *ArrayList) Remove(pos int) int {
 
 // Return the value at the specific position after checking that the index is within
 // the current length.
-func (a *ArrayList) Get(pos int) int {
-	return a.data[pos]
+func (a *ArrayList) Get(pos int) (int, error) {
+	if len(a.data) < 1 {
+		return 0, errors.New("Array list is empty")
+	}
+
+	return a.data[pos], nil
 }
 
 // Replace the value at a specific position after checking that the index is within
