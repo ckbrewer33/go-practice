@@ -4,6 +4,19 @@ import "fmt"
 
 func main() {
 	fmt.Println("Hello, world")
+	var a ArrayList
+
+	fmt.Println("appending '1'")
+	a.Append(1)
+
+	fmt.Print("current length: ")
+	fmt.Println(a.len)
+
+	fmt.Println("appending '2'")
+	a.Append(2)
+
+	fmt.Print("current length: ")
+	fmt.Println(a.len)
 }
 
 type ArrayList struct {
@@ -14,7 +27,8 @@ type ArrayList struct {
 // Add a value to the end of the array. If length equal capacity, allocate a larger
 // backing slice, copyt the existing values, then store the new value.
 func (a *ArrayList) Append(val int) {
-	fmt.Println("Append not implemented yet")
+	a.data = append(a.data, val)
+	a.len = a.len + 1
 }
 
 // Add a value at the specific position. Check bounds, grow if needed, shift values from that
@@ -33,8 +47,7 @@ func (a *ArrayList) Remove(pos int) int {
 // Return the value at the specific position after checking that the index is within
 // the current length.
 func (a *ArrayList) Get(pos int) int {
-	fmt.Println("Get not implemented yet")
-	return 0
+	return a.data[pos]
 }
 
 // Replace the value at a specific position after checking that the index is within
@@ -44,11 +57,11 @@ func (a *ArrayList) Set(val, pos int) {
 }
 
 // Return the number of values currently stored
-func (a *ArrayList) Len(val, pos int) {
-	fmt.Println("Len not implemented yet")
+func (a *ArrayList) Len() int {
+	return a.len
 }
 
 // Return the amount of allocated space available before another resize is required
-func (a *ArrayList) Cap(val, pos int) {
+func (a *ArrayList) Cap() {
 	fmt.Println("Cap not implemented yet")
 }
